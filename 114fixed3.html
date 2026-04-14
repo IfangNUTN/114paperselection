@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>論文選讀系統</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4eedd;--surface:#545352;--surface2:#222019;--border:#2e2b24;
+    --accent:#d4b578;--accent-dim:#a88848;
+    --text:#f0e8d8;--text-muted:#b0a898;--text-dim:#c8c0b0;
+    --taken-border:#3a3730;--taken-text:#807870;
+    --tag-1:#2a3a2a;--tag-1c:#7ab87a;--tag-2:#2a2a3a;--tag-2c:#7a7ab8;
+    --tag-3:#3a2a2a;--tag-3c:#b87a7a;--tag-4:#3a3a2a;--tag-4c:#b8b87a;
+    --tag-5:#2a3a3a;--tag-5c:#7ab8b8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Serif TC',serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:80px;}
+
+  /* ── Loading mask ── */
+  .mask{position:fixed;inset:0;background:rgba(15,14,11,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:800;gap:14px;}
+  .mask-txt{font-size:.85rem;color:var(--text-muted);}
+  .spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ── Header ── */
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:20px 36px 16px;position:sticky;top:0;z-index:100;}
+  .header-inner{max-width:980px;margin:0 auto;display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;}
+  .header-title{font-family:'Playfair Display',serif;font-size:1.25rem;color:var(--accent);letter-spacing:.02em;}
+  .header-subtitle{font-size:.67rem;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin-top:3px;}
+  .header-right{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+
+  /* ── Auth fields ── */
+  .fg{display:flex;flex-direction:column;gap:4px;}
+  .fl{font-size:.63rem;color:var(--text-muted);letter-spacing:.07em;text-transform:uppercase;}
+  .fw{position:relative;display:flex;align-items:center;}
+  input[type=text],input[type=password]{
+    background:var(--bg);border:1px solid var(--border);color:var(--text);
+    font-family:'DM Mono',monospace;font-size:.85rem;padding:7px 30px 7px 10px;
+    border-radius:4px;outline:none;transition:border-color .2s,background .2s;
+  }
+  #idIn{width:148px;}#nmIn{width:108px;}
+  input:focus{border-color:var(--accent-dim);}
+  input.ok{border-color:#4a8a4a!important;background:rgba(74,138,74,.07);}
+  input.err{border-color:#8a4040!important;background:rgba(138,64,64,.08);}
+  input:disabled{opacity:.32;cursor:not-allowed;}
+  .ico{position:absolute;right:8px;font-size:.82rem;pointer-events:none;opacity:0;transition:opacity .18s;}
+  .ico.show{opacity:1;}
+  .fm{font-size:.63rem;min-height:14px;letter-spacing:.02em;}
+  .fm.ok{color:#68b868;}.fm.err{color:#c07878;}.fm.hint{color:var(--text-dim);}
+
+  .vbar{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:7px 13px;background:rgba(74,122,74,.1);border:1px solid rgba(74,122,74,.32);
+    border-radius:5px;font-size:.78rem;color:#78c078;
+    opacity:0;transform:translateY(-4px);transition:all .28s;pointer-events:none;
+    align-self:flex-end;margin-bottom:1px;
+  }
+  .vbar.on{opacity:1;transform:none;pointer-events:all;}
+  .vbar-nm{font-weight:700;color:#a8e0a8;}
+  .vbar-tag{font-size:.65rem;padding:2px 7px;background:rgba(200,169,110,.1);border:1px solid rgba(200,169,110,.28);border-radius:3px;color:var(--accent);}
+
+  .admin-btn{font-size:.7rem;padding:6px 14px;background:rgba(200,169,110,.07);border:1px solid var(--accent-dim);color:var(--accent-dim);border-radius:4px;cursor:pointer;font-family:'Noto Serif TC',serif;transition:all .15s;align-self:flex-end;margin-bottom:1px;white-space:nowrap;}
+  .admin-btn:hover{background:rgba(200,169,110,.14);color:var(--accent);}
+
+  /* ── Paper list ── */
+  .main{max-width:980px;margin:28px auto 0;padding:0 22px;}
+  .sbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+  .slbl{font-size:.67rem;text-transform:uppercase;letter-spacing:.12em;color:#6a6258;}
+  .cnt{font-family:'DM Mono',monospace;font-size:.68rem;color:#5a5248;}
+  .cnt b{color:var(--accent);font-weight:500;}
+  .plist{display:flex;flex-direction:column;gap:5px;}
+
+  .pi{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:5px;cursor:default;transition:border-color .15s,background .15s,opacity .2s;}
+  .pi.sel:hover{border-color:var(--accent-dim);background:var(--surface2);cursor:pointer;}
+  .pi.taken{opacity:.36;cursor:not-allowed;}
+  .pi.mine{border-color:var(--accent);background:rgba(200,169,110,.05);}
+  .pn{font-family:'DM Mono',monospace;font-size:.69rem;color:var(--text-dim);min-width:22px;padding-top:2px;flex-shrink:0;}
+  .pi.mine .pn{color:var(--accent);}
+  .pb{flex:1;}
+  .pt{font-size:.86rem;line-height:1.55;color:var(--text);margin-bottom:5px;}
+  .pi.taken .pt{color:var(--taken-text);}.pi.mine .pt{color:var(--accent);}
+  .pm{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .pv{font-size:.68rem;color:var(--text-dim);font-family:'DM Mono',monospace;}
+  .ptg{font-size:.61rem;padding:2px 7px;border-radius:3px;letter-spacing:.03em;}
+  .pst{font-size:.67rem;color:var(--text-dim);}
+  .pr{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
+  .tby{font-size:.65rem;font-family:'DM Mono',monospace;color:var(--text-dim);background:rgba(255,255,255,.02);padding:3px 7px;border-radius:3px;border:1px solid var(--taken-border);}
+  .mbdg{font-size:.65rem;color:var(--accent);background:rgba(200,169,110,.1);padding:3px 8px;border-radius:3px;border:1px solid rgba(200,169,110,.28);}
+  .sbtn{font-size:.69rem;padding:4px 11px;background:transparent;border:1px solid var(--accent-dim);color:var(--accent);border-radius:3px;cursor:pointer;font-family:'Noto Serif TC',serif;transition:background .15s;white-space:nowrap;}
+  .sbtn:hover{background:rgba(200,169,110,.12);}
+
+  /* ── Confirm dialog ── */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:600;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .overlay.on{opacity:1;pointer-events:all;}
+  .dlg{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:26px 28px;max-width:460px;width:90%;}
+  .dlg h3{font-family:'Playfair Display',serif;font-size:1rem;color:var(--accent);margin-bottom:9px;}
+  .dlg p{font-size:.8rem;color:var(--text-muted);line-height:1.6;margin-bottom:13px;}
+  .dlg-paper{font-size:.84rem;color:var(--text);background:var(--bg);padding:10px 14px;border-radius:4px;border:1px solid var(--border);margin-bottom:18px;line-height:1.55;}
+  .dlg-btns{display:flex;gap:10px;justify-content:flex-end;}
+  .btn-c{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:7px 16px;border-radius:4px;cursor:pointer;font-size:.78rem;font-family:'Noto Serif TC',serif;transition:all .15s;}
+  .btn-c:hover{border-color:var(--text-muted);color:var(--text);}
+  .btn-ok{background:rgba(200,169,110,.12);border:1px solid var(--accent-dim);color:var(--accent);padding:7px 16px;border-radius:4px;cursor:pointer;font-size:.78rem;font-family:'Noto Serif TC',serif;transition:background .15s;}
+  .btn-ok:hover{background:rgba(200,169,110,.24);}
+
+  /* ── Admin panel ── */
+  .adm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;z-index:700;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .adm-overlay.on{opacity:1;pointer-events:all;}
+  .adm-panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0;max-width:860px;width:95%;max-height:88vh;display:flex;flex-direction:column;}
+  .adm-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 24px 14px;border-bottom:1px solid var(--border);}
+  .adm-title{font-family:'Playfair Display',serif;font-size:1rem;color:var(--accent);}
+  .adm-meta{font-size:.72rem;color:var(--text-muted);margin-top:2px;}
+  .adm-close{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:5px 12px;border-radius:4px;cursor:pointer;font-size:.75rem;font-family:'Noto Serif TC',serif;transition:all .15s;}
+  .adm-close:hover{border-color:var(--text-muted);color:var(--text);}
+
+  .adm-gate{display:flex;flex-direction:column;align-items:center;gap:14px;padding:40px 24px;}
+  .adm-gate p{font-size:.85rem;color:var(--text-muted);}
+  .adm-gate input{width:200px;text-align:center;letter-spacing:.1em;padding:8px 12px;}
+  .pw-err{font-size:.72rem;color:#c07878;min-height:16px;}
+
+  .adm-body{flex:1;overflow-y:auto;padding:16px 24px;}
+  .adm-actions{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+  .exp-btn{font-size:.72rem;padding:6px 14px;background:rgba(200,169,110,.08);border:1px solid var(--accent-dim);color:var(--accent);border-radius:4px;cursor:pointer;font-family:'Noto Serif TC',serif;transition:background .15s;}
+  .exp-btn:hover{background:rgba(200,169,110,.18);}
+  .rst-btn{font-size:.72rem;padding:6px 14px;background:rgba(138,64,64,.08);border:1px solid rgba(138,64,64,.4);color:#c07878;border-radius:4px;cursor:pointer;font-family:'Noto Serif TC',serif;transition:background .15s;}
+  .rst-btn:hover{background:rgba(138,64,64,.16);}
+  .adm-sync{font-size:.68rem;color:var(--text-dim);margin-left:auto;}
+
+  table{width:100%;border-collapse:collapse;font-size:.78rem;}
+  thead tr{border-bottom:1px solid var(--border);}
+  th{text-align:left;padding:8px 10px;font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;font-weight:400;}
+  tbody tr{border-bottom:1px solid rgba(46,43,36,.5);transition:background .12s;}
+  tbody tr:hover{background:rgba(255,255,255,.02);}
+  td{padding:8px 10px;vertical-align:middle;}
+  .td-id{font-family:'DM Mono',monospace;color:var(--text-dim);font-size:.72rem;}
+  .td-name{font-weight:600;color:var(--text);}
+  .td-num{font-family:'DM Mono',monospace;color:var(--accent);font-size:.72rem;}
+  .td-title{color:var(--text-muted);font-size:.76rem;line-height:1.4;}
+  .td-tag{font-size:.6rem;padding:2px 6px;border-radius:3px;}
+  .empty-row td{text-align:center;color:var(--text-dim);padding:28px;font-size:.82rem;}
+
+  .unsec{margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
+  .unsec-title{font-size:.67rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:10px;}
+  .unsec-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .unsec-tag{font-size:.7rem;padding:3px 10px;background:rgba(138,64,64,.08);border:1px solid rgba(138,64,64,.2);border-radius:3px;color:#c07878;font-family:'DM Mono',monospace;}
+
+  /* ── Toast ── */
+  .toast{position:fixed;bottom:24px;right:24px;padding:11px 17px;border-radius:5px;font-size:.8rem;z-index:850;opacity:0;transform:translateY(7px);transition:all .25s;pointer-events:none;}
+  .toast.on{opacity:1;transform:none;}
+  .toast.s{background:rgba(50,90,50,.95);color:#b8f0b8;border:1px solid rgba(80,130,80,.5);}
+  .toast.e{background:rgba(100,38,38,.95);color:#f0b8b8;border:1px solid rgba(140,75,75,.5);}
+  .toast.i{background:rgba(38,36,28,.97);color:var(--text);border:1px solid var(--border);}
+
+  @media(max-width:600px){
+    .header{padding:14px 14px 12px;}.main{padding:0 11px;}
+    .pi{gap:8px;padding:11px 10px;}#idIn{width:130px;}#nmIn{width:90px;}
+    .adm-panel{max-width:99vw;}.adm-body{padding:12px 12px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="mask" id="mask">
+  <div class="spinner"></div>
+  <div class="mask-txt" id="maskTxt">連線至雲端資料庫…</div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="overlay" id="dlgOv">
+  <div class="dlg">
+    <h3>確認選取論文</h3>
+    <p>以下論文將記錄在您的學號下，<strong style="color:var(--text)">每人只能選一篇，選定後無法更改</strong>，請確認後再送出。</p>
+    <div class="dlg-paper" id="dlgTxt"></div>
+    <div class="dlg-btns">
+      <button class="btn-c" onclick="closeDlg()">取消</button>
+      <button class="btn-ok" onclick="confirmSelect()">確認送出</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin panel -->
+<div class="adm-overlay" id="admOv">
+  <div class="adm-panel">
+    <div class="adm-hd">
+      <div>
+        <div class="adm-title">📋 管理員 — 選取結果總覽</div>
+        <div class="adm-meta" id="admMeta"></div>
+      </div>
+      <button class="adm-close" onclick="closeAdmin()">關閉</button>
+    </div>
+    <div class="adm-gate" id="admGate">
+      <p>請輸入管理員密碼</p>
+      <input type="password" id="pwIn" placeholder="••••••" onkeydown="if(event.key==='Enter')checkPw()">
+      <div class="pw-err" id="pwErr"></div>
+      <button class="btn-ok" onclick="checkPw()">確認</button>
+    </div>
+    <div class="adm-body" id="admBody" style="display:none">
+      <div class="adm-actions">
+        <button class="exp-btn" onclick="exportCSV()">⬇ 下載 CSV</button>
+        <button class="exp-btn" onclick="copyTable()">📋 複製表格（貼入 Excel）</button>
+        <button class="exp-btn" onclick="buildAdminTable()">🔄 重新整理</button>
+        <button class="rst-btn" onclick="resetAll()">⚠ 清除所有選取</button>
+        <span class="adm-sync" id="admSync"></span>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>學號</th><th>姓名</th><th>論文</th><th>標題</th><th>選取時間</th></tr></thead>
+        <tbody id="admTbody"></tbody>
+      </table>
+      <div class="unsec" id="unsecDiv">
+        <div class="unsec-title">尚未選取的同學</div>
+        <div class="unsec-list" id="unsecList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <div class="header-title">論文選讀系統</div>
+      <div class="header-subtitle">雲端計算 · 研究所課程</div>
+    </div>
+    <div class="header-right">
+      <div class="fg">
+        <div class="fl">學號</div>
+        <div class="fw">
+          <input type="text" id="idIn" placeholder="M11459001" maxlength="12" autocomplete="off" oninput="onAuth()">
+          <span class="ico" id="idIco"></span>
+        </div>
+        <div class="fm hint" id="idMsg">請輸入學號</div>
+      </div>
+      <div class="fg">
+        <div class="fl">姓名</div>
+        <div class="fw">
+          <input type="text" id="nmIn" placeholder="請輸入姓名" maxlength="6" autocomplete="off" oninput="onAuth()" disabled>
+          <span class="ico" id="nmIco"></span>
+        </div>
+        <div class="fm hint" id="nmMsg">待學號驗證後輸入</div>
+      </div>
+      <div class="vbar" id="vbar">
+        <span>✓ 驗證成功</span>
+        <span class="vbar-nm" id="vbarNm"></span>
+        <span class="vbar-tag" id="vbarTag" style="display:none"></span>
+      </div>
+      <button class="admin-btn" onclick="openAdmin()">管理員</button>
+    </div>
+  </div>
+</div>
+
+<!-- Paper list -->
+<div class="main">
+  <div class="sbar">
+    <span class="slbl">可選論文清單</span>
+    <span class="cnt">已選 <b id="tc">0</b> / 10 篇</span>
+  </div>
+  <div class="plist" id="plist"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ╔══════════════════════════════════════════╗
+// ║  Google Apps Script 後端 URL             ║
+// ╚══════════════════════════════════════════╝
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzWT0fpVaG3qTusxngOjDmyxk61SwEF1xF2q40GI88xpvAkrVcVkmZBdYS-Aoc5xRUYhg/exec";
+const ADMIN_PW = "cloud2025"; // ← 可自行修改
+
+// ── Students ───────────────────────────────────────────────────────────────
+const STUDENTS = {
+  "M11459001":"古于芳","M11459005":"蔡尹瑜","M11459008":"李承宗",
+  "M11459009":"郭耘瑑","M11459010":"曾保榛","M11459012":"黃凱傑",
+  "M11459014":"鄭景鴻","M11459015":"蕭郁衡","M11459018":"林庭卉",
+  "M11459019":"王寀彤","M11459020":"陳心瑋","M11459022":"黃聖凱",
+  "M11459023":"黃政瑋","S11059033":"王羿堯","S11159002":"張家碩",
+  "S11159007":"林嵩桀","S11159013":"陳泳銜","S11159014":"張家榮",
+  "S11159024":"陳浩承","S11159027":"林易儒","S11159030":"莊子賢",
+  "S11159036":"廖挺旭","S11159039":"黄冠傑"
+};
+
+// ── Papers ─────────────────────────────────────────────────────────────────
+const PAPERS = [
+  {id:1,  a:"Li et al.",            t:"Golgi: Performance-aware, resource-efficient function scheduling for serverless computing",                 v:"SoCC '23"},
+  {id:2,  a:"Liu et al.",           t:"AsyFunc: A high-performance and resource-efficient serverless inference system via asymmetric functions",   v:"SoCC '23"},
+  {id:3,  a:"Wang et al.",          t:"DeepScaling: Autoscaling microservices with stable CPU utilization for large scale production cloud systems",v:"IEEE/ACM ToN"},
+  {id:4,  a:"Hong et al.",          t:"Proactive resource autoscaling scheme based on SCINet for high-performance cloud computing",                v:"IEEE TCC"},
+  {id:5,  a:"Lei et al.",           t:"Chitu: Accelerating serverless workflows with asynchronous state replication pipelines",                    v:"SoCC '23"},
+  {id:6,  a:"Sadeghian & Shahrad",  t:"Parrotfish: Parametric regression for optimizing serverless functions",                                     v:"SoCC '23"},
+  {id:7,  a:"Wei et al.",           t:"A deep reinforcement learning-based scheduling framework for real-time workflows in the cloud environment", v:"NCA"},
+  {id:8, a:"Buchaca et al.",       t:"Proactive container auto-scaling for cloud native machine learning services",                               v:"IEEE CLOUD '20"},
+  {id:9, a:"Radovanovic et al.",   t:"Carbon-aware computing for datacenters",                                                                    v:"arXiv"},
+  {id:10, a:"Wiesner et al.",       t:"Let's wait awhile: How temporal workload shifting can reduce carbon emissions in the cloud",                v:"Middleware '21"},
+  {id:11, a:"Chen et al.",   t:"FaaSLight: General Application-level Cold-start Latency Optimization for Function-as-a-Service in Serverless Computing", v:"TOSEM '23"},
+  {id:12, a:"Ding et al.",   t:"Automated Verification of Idempotence for Stateful Serverless Applications",                                             v:"OSDI '23"},
+  {id:13, a:"Zhuang et al.", t:"ExoFlow: A Universal Workflow System for Exactly-Once DAGs",                                                             v:"OSDI '23"},
+  {id:14, a:"Fu et al.",     t:"ServerlessLLM: Low-Latency Serverless Inference for Large Language Models",                                              v:"OSDI '24"},
+  {id:15, a:"Lazarev et al.",t:"Sabre: Hardware-Accelerated Snapshot Compression for Serverless MicroVMs",                                               v:"OSDI '24"},
+  {id:16, a:"Zheng et al.",  t:"Alpa: Automating Inter- and Intra-Operator Parallelism for Distributed Deep Learning",                                   v:"OSDI '22"},
+  {id:17, a:"Zheng et al.",  t:"Shockwave: Fair and Efficient Cluster Scheduling for Dynamic Adaptation in Machine Learning",                            v:"NSDI '23"},
+  {id:18, a:"Chow et al.",   t:"ServiceLab: Preventing Tiny Performance Regressions at Hyperscale through Pre-Production Testing",                       v:"OSDI '24"},
+  {id:19, a:"Flinn et al.",  t:"Owl: Scale and Flexibility in Distribution of Hot Content",                                                              v:"OSDI '22"},
+  {id:20, a:"Namyar et al.", t:"Solving Max-Min Fair Resource Allocations Quickly on Large Graphs",                                                      v:"NSDI '24"},
+  {id:21, a:"Wang et al.",   t:"SRNIC: A Scalable Architecture for RDMA NICs",                                                                           v:"NSDI '23"},
+  {id:22, a:"Liu et al.",    t:"Mitigating Scalability Walls of RDMA-based Container Networks",                                                          v:"NSDI '25"},
+  {id:23, a:"Katta et al.",  t:"Hostping: Diagnosing Intra-host Network Bottlenecks in RDMA Servers",                                                    v:"NSDI '23"},
+  {id:24, a:"Zhou et al.",   t:"Deep Reinforcement Learning-based Methods for Resource Scheduling in Cloud Computing: A Review and Future Directions",   v:"Artificial Intelligence Review 24"},
+  {id:25, a:"Yang et al.",  t:"A Decentralized Multiagent-Based Task Scheduling Framework for Handling Uncertain Events in Fog Computing",              v:"AAMAS '23"},
+  {id:26, a:"Jayanetti et al.",    t:"A Deep Reinforcement Learning Approach for Cost Optimized Workflow Scheduling in Cloud Computing Environments",          v:"CTCNET '24"},
+   {id:27, a:"Li et al.",     t:"An Energy-Efficient Tuning Method for Cloud Servers Combining DVFS and Parameter Optimization",                          v:"IEEE TCC '23"},
+  {id:28, a:"Sharma et al.", t:"Improving Energy Efficiency through Green Cloud Computing in IoT Networks",                                              v:"IEEE Xplore '24"},
+  {id:29, a:"Singh et al.",  t:"The Scope of Energy Efficient Techniques in Cloud Computing",                                                            v:"ICRITO '22"}
+];
+const TC=[{bg:"var(--tag-1)",c:"var(--tag-1c)"},{bg:"var(--tag-2)",c:"var(--tag-2c)"},
+          {bg:"var(--tag-3)",c:"var(--tag-3c)"},{bg:"var(--tag-4)",c:"var(--tag-4c)"},
+          {bg:"var(--tag-5)",c:"var(--tag-5c)"}];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let sel={}, verified=false, curId=null, curName=null, pending=null, admUnlocked=false;
+
+// ── JSONP：用 script tag 繞過 GAS CORS 問題 ──────────────
+function jsonp(params){
+  return new Promise(function(resolve, reject){
+    var cbName = "_cb" + Date.now() + Math.floor(Math.random()*99999);
+    var script;
+    var timer = setTimeout(function(){
+      cleanup(); reject(new Error("timeout"));
+    }, 15000);
+    function cleanup(){
+      delete window[cbName];
+      if(script && script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data){
+      clearTimeout(timer); cleanup(); resolve(data);
+    };
+    var p = Object.assign({}, params, {callback: cbName, t: Date.now()});
+    var qs = Object.keys(p).map(function(k){
+      return encodeURIComponent(k)+"="+encodeURIComponent(p[k]);
+    }).join("&");
+    script = document.createElement("script");
+    script.src = GAS_URL + "?" + qs;
+    script.onerror = function(){
+      clearTimeout(timer); cleanup(); reject(new Error("script error"));
+    };
+    document.head.appendChild(script);
+  });
+}
+async function apiGet(){ return await jsonp({}); }
+async function apiPost(payload){ return await jsonp(payload); }
+
+// ── Load data ──────────────────────────────────────────────────────────────
+async function loadSel(){
+  try{ sel = await apiGet(); }
+  catch(e){ console.error("loadSel:",e); sel={}; }
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+function onAuth(){
+  const id  =document.getElementById("idIn").value.trim().toUpperCase();
+  const name=document.getElementById("nmIn").value.trim();
+  const nmIn=document.getElementById("nmIn");
+  verified=false;curId=null;curName=null;
+  setF("id","","hint","請輸入學號");
+  setF("nm","","hint","待學號驗證後輸入");
+  document.getElementById("vbar").classList.remove("on");
+  // 只有學號欄位為空時才 disable 姓名欄，避免打斷中文輸入法
+  if(!id){ nmIn.disabled=true; render(); return; }
+  const exp=STUDENTS[id];
+  if(!exp){ nmIn.disabled=true; setF("id","✗","err","查無此學號，請確認");render();return;}
+  setF("id","✓","ok","學號正確");
+  nmIn.disabled=false;
+  if(!name){setF("nm","","hint","請輸入對應姓名");render();return;}
+  if(name!==exp){setF("nm","✗","err","姓名與學號不符，無法選取論文");render();return;}
+  setF("nm","✓","ok","驗證通過");
+  verified=true;curId=id;curName=exp;
+  document.getElementById("vbarNm").textContent=curName;
+  const myE=Object.entries(sel).find(([,v])=>v.studentId===id);
+  const tag=document.getElementById("vbarTag");
+  if(myE){tag.textContent=`已選第 ${myE[0]} 篇`;tag.style.display="";}
+  else tag.style.display="none";
+  document.getElementById("vbar").classList.add("on");
+  render();
+}
+
+function setF(w,ico,cls,msg){
+  const i=document.getElementById(w==="id"?"idIn":"nmIn");
+  const ic=document.getElementById(w==="id"?"idIco":"nmIco");
+  const m=document.getElementById(w==="id"?"idMsg":"nmMsg");
+  i.className=cls==="ok"?"ok":cls==="err"?"err":"";
+  ic.textContent=ico;ic.className=ico?"ico show":"ico";
+  m.textContent=msg;m.className=`fm ${cls}`;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render(){
+  const list=document.getElementById("plist");
+  document.getElementById("tc").textContent=Object.keys(sel).length;
+  const myE=verified?Object.entries(sel).find(([,v])=>v.studentId===curId):null;
+  const hasOne=!!myE;
+  list.innerHTML=PAPERS.map(p=>{
+    const s=sel[p.id],isMine=s&&s.studentId===curId,isTaken=!!s&&!isMine;
+    const canSel=verified&&!hasOne&&!isTaken&&!isMine;
+    let right="";
+    if(isMine) right=`<span class="mbdg">✓ 已選取</span>`;
+    else if(isTaken) right=`<span class="tby">${s.name} 已選</span>`;
+    else if(canSel) right=`<button class="sbtn" onclick="event.stopPropagation();openDlg(${p.id})">選取</button>`;
+    const cls=["pi",isTaken?"taken":"",isMine?"mine":"",canSel?"sel":""].filter(Boolean).join(" ");
+    return `<div class="${cls}" ${canSel?`onclick="openDlg(${p.id})"`:""}>
+      <div class="pn">${String(p.id).padStart(2,"0")}</div>
+      <div class="pb"><div class="pt">${p.t}</div>
+        <div class="pm">
+          <span class="pv">${p.a} · ${p.v}</span>
+        </div>
+      </div>
+      <div class="pr">${right}</div>
+    </div>`;
+  }).join("");
+}
+
+// ── Confirm select ─────────────────────────────────────────────────────────
+function openDlg(pid){
+  if(!verified){showToast("請先完成學號與姓名驗證","i");return;}
+  if(sel[pid]){showToast("此論文已被選取","e");return;}
+  if(Object.values(sel).find(v=>v.studentId===curId)){showToast("您已選過論文了","e");return;}
+  pending=pid;
+  const p=PAPERS.find(x=>x.id===pid);
+  document.getElementById("dlgTxt").textContent=`#${p.id}　${p.t}`;
+  document.getElementById("dlgOv").classList.add("on");
+}
+function closeDlg(){document.getElementById("dlgOv").classList.remove("on");pending=null;}
+
+async function confirmSelect(){
+  if(!pending||!verified)return;
+  const pid = pending;   // ← 先把 pending 存起來
+  closeDlg();            // ← 再關 dialog（會把 pending 設成 null）
+  showMask("寫入雲端資料中…");
+  try{
+    const now=new Date().toLocaleString("zh-TW",{timeZone:"Asia/Taipei"});
+    const res=await apiPost({action:"select",paperId:pid,studentId:curId,name:curName,time:now});
+    if(res.ok){
+      sel[pid]={studentId:curId,name:curName,time:now};
+      const p=PAPERS.find(x=>x.id===pid);
+      showToast(`✓ 成功選取第 ${p.id} 篇`,"s");
+      const tag=document.getElementById("vbarTag");
+      tag.textContent=`已選第 ${p.id} 篇`;tag.style.display="";
+    } else if(res.msg==="already_taken"){
+      showToast("此論文剛被他人搶先選取，請重新選擇","e");
+      await loadSel();
+    } else if(res.msg==="student_duplicate"){
+      showToast("您已選過論文了","e");
+      await loadSel();
+    } else {
+      showToast("選取失敗，請重試","e");
+    }
+  }catch(e){
+    showToast("網路錯誤，請重試","e");
+  }
+  pending=null;
+  hideMask();
+  render();
+}
+
+// ── Admin ──────────────────────────────────────────────────────────────────
+function openAdmin(){
+  document.getElementById("admOv").classList.add("on");
+  document.getElementById("pwIn").value="";
+  document.getElementById("pwErr").textContent="";
+  if(admUnlocked){buildAdminTable();}
+  else{
+    document.getElementById("admGate").style.display="";
+    document.getElementById("admBody").style.display="none";
+  }
+}
+function closeAdmin(){document.getElementById("admOv").classList.remove("on");}
+function checkPw(){
+  if(document.getElementById("pwIn").value===ADMIN_PW){admUnlocked=true;buildAdminTable();}
+  else document.getElementById("pwErr").textContent="密碼錯誤，請重試";
+}
+
+async function buildAdminTable(){
+  document.getElementById("admGate").style.display="none";
+  document.getElementById("admBody").style.display="";
+  document.getElementById("admSync").textContent="資料更新中…";
+  await loadSel();
+  render();
+  const rows=Object.entries(sel);
+  const total=Object.keys(STUDENTS).length;
+  document.getElementById("admMeta").textContent=`已選 ${rows.length} 人 / 共 ${total} 人　尚餘 ${total-rows.length} 人未選`;
+  document.getElementById("admSync").textContent=`最後更新：${new Date().toLocaleTimeString("zh-TW")}`;
+
+  const sorted=rows.sort((a,b)=>Number(a[0])-Number(b[0]));
+  const tbody=document.getElementById("admTbody");
+  if(sorted.length===0){
+    tbody.innerHTML=`<tr class="empty-row"><td colspan="6">目前尚無任何同學完成選取</td></tr>`;
+  } else {
+    tbody.innerHTML=sorted.map(([pid,v],i)=>{
+      const p=PAPERS.find(x=>x.id==pid);
+      if(!p) return "";
+      return `<tr>
+        <td style="color:var(--text-dim);font-size:.7rem">${i+1}</td>
+        <td class="td-id">${v.studentId}</td>
+        <td class="td-name">${v.name}</td>
+        <td class="td-num">${String(p.id).padStart(2,"0")}</td>
+        <td class="td-title">${p.t}</td>
+        <td style="font-size:.65rem;color:var(--text-dim);white-space:nowrap">${v.time||""}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  const selIds=new Set(rows.map(([,v])=>v.studentId));
+  const unsel=Object.entries(STUDENTS).filter(([id])=>!selIds.has(id));
+  const ud=document.getElementById("unsecDiv");
+  if(unsel.length===0){
+    ud.style.display="none";
+  } else {
+    ud.style.display="";
+    document.getElementById("unsecList").innerHTML=unsel.map(([id,nm])=>`<span class="unsec-tag">${id} ${nm}</span>`).join("");
+  }
+}
+
+function exportCSV(){
+  const rows=Object.entries(sel).sort((a,b)=>Number(a[0])-Number(b[0]));
+  const hdr="序號,學號,姓名,論文編號,論文標題,選取時間\n";
+  const body=rows.map(([pid,v],i)=>{
+    const p=PAPERS.find(x=>x.id==pid);
+    return `${i+1},"${v.studentId}","${v.name}",${p.id},"${p.t}","${v.time||""}"`;
+  }).join("\n");
+  const blob=new Blob(["\uFEFF"+hdr+body],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;
+  a.download=`論文選讀結果_${new Date().toLocaleDateString("zh-TW").replace(/\//g,"-")}.csv`;
+  a.click();URL.revokeObjectURL(url);
+  showToast("CSV 已下載","s");
+}
+
+function copyTable(){
+  const rows=Object.entries(sel).sort((a,b)=>Number(a[0])-Number(b[0]));
+  const hdr="序號\t學號\t姓名\t論文編號\t論文標題\t屬性\t選取時間";
+  const body=rows.map(([pid,v],i)=>{
+    const p=PAPERS.find(x=>x.id==pid);
+    return `${i+1}\t${v.studentId}\t${v.name}\t${p.id}\t${p.t}\t${p.tag}\t${v.time||""}`;
+  }).join("\n");
+  navigator.clipboard.writeText(hdr+"\n"+body)
+    .then(()=>showToast("已複製，可直接貼入 Excel","s"))
+    .catch(()=>showToast("複製失敗，請使用下載 CSV","e"));
+}
+
+async function resetAll(){
+  if(!confirm("確定要清除所有同學的選取紀錄嗎？此操作無法復原！"))return;
+  showMask("清除中…");
+  try{
+    const res=await apiPost({action:"reset"});
+    if(res.ok){
+      sel={};
+      showToast("已清除所有選取紀錄","e");
+      render();
+      buildAdminTable();
+    }
+  }catch(e){
+    showToast("清除失敗，請重試","e");
+  }
+  hideMask();
+}
+
+// ── Mask & toast ───────────────────────────────────────────────────────────
+function showMask(t="處理中…"){
+  document.getElementById("maskTxt").textContent=t;
+  document.getElementById("mask").style.display="flex";
+}
+function hideMask(){document.getElementById("mask").style.display="none";}
+
+let _tt;
+function showToast(msg,type="i"){
+  const el=document.getElementById("toast");
+  el.textContent=msg;el.className=`toast on ${type}`;
+  clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove("on"),3600);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(async()=>{
+  document.getElementById("nmIn").disabled=true;
+  showMask("連線至雲端資料庫…");
+  try{
+    await loadSel();
+    hideMask();
+    render();
+    // Auto-refresh every 20s
+    setInterval(async()=>{ await loadSel(); render(); onAuth(); }, 20000);
+  }catch(e){
+    hideMask();
+    showToast("無法連線，請重新整理頁面","e");
+  }
+})();
+</script>
+</body>
+</html>
